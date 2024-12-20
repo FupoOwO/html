@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный кабинет</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="images/Minis_Store_logo.png" alt="Shop Logo">
+        </div>
+        <nav>
+            <ul>
+                <section id="auth-buttons" class="auth-buttons">
+                    <li><a href="index.php">На главную</a></li>
+                    <li><a href="logout.php" id="logoutButton">Выйти</a></li>
+                </section>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h1>Добро пожаловать, <?php echo htmlspecialchars($username); ?>!</h1>
+        <p>Это ваша страница личного кабинета.</p>
+
+        
+
+        <div id="addProductModal" class="modal">
+    <div class="modal-content">
+        <h2>Добавить товар</h2>
+        <form id="addProductForm" action="profile.php" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="addProduct">
+            
+            <label for="productName">Название товара:</label>
+            <textarea id="productName" name="productName" required></textarea>
+            
+            <label for="productDescription">Описание:</label>
+            <textarea id="productDescription" name="productDescription" required></textarea>
+            <label for="productPrice">Цена:</label>
+            <input type="number" id="productPrice" name="productPrice" required>
+            <label for="productImage">Изображение товара:</label>
+            <input type="file" id="productImage" name="productImage" accept="image/*" required>
+            <div id="imagePreview"></div>
+            
+            <button type="submit">Добавить товар</button>
+        </form>
+    </div>
+</div>
+
+<style>
+    #addProductForm label,
+    #addProductForm textarea,
+    #addProductForm input,
+    #addProductForm button {
+        display: block;
+        margin-bottom: 10px;
+    }
+    #addProductForm textarea {
+        width: 35%;
+        box-sizing: border-box;
+        resize: none;
+        overflow-wrap: break-word;
+        min-height: 30px; /* Минимальная высота */
+    }
+    #addProductForm textarea:focus {
+        height: 200px; /* Высота при фокусе */
+    }
+    #addProductForm input[type="text"]:focus,
+    #addProductForm input[type="file"]:focus,
+    #addProductForm input[type="number"]:focus,
+    #addProductForm textarea:focus {
+        width: 50%;
+    }
+    #imagePreview img {
+        max-width: 100%;
+        max-height: 200px;
+        margin-top: 10px;
+    }
+</style>
+
+<script>
+    document.getElementById('productImage').addEventListener('change', function(event) {
+        const previewContainer = document.getElementById('imagePreview');
+        previewContainer.innerHTML = '';
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                previewContainer.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+</script>
+
+<h2>Ваши объявления</h2>
+<div class="product-grid" id="productList">
+    <?php
+    // Получение списка товаров текущего пользователя из базы данных
+    $stmt = pg_query_params($conn, 'SELECT * FROM products WHERE user_id = $1', array($user_id));
+    if (!$stmt) {
+        echo "Ошибка выполнения запроса: " . pg_last_error($conn);
+    } else {
+        if (pg_num_rows($stmt) === 0) {
+            echo "<p> У вас нет добавленных товаров.</p>";
+        } else {
+            while ($row = pg_fetch_assoc($stmt)) {
+                echo '<div class="product" id="product-' . htmlspecialchars($row['id']) . '" onclick="showProductDetails(\'' . htmlspecialchars($row['image']) . '\', \'' . htmlspecialchars($row['name']) . '\', \'' . htmlspecialchars($row['description']) . '\', \'' . htmlspecialchars($row['price']) . '\')">';
+                echo '<img src="' . htmlspecialchars($row['image']) . '" alt="' . htmlspecialchars($row['name']) . '">';
+                echo '<h3>' . htmlspecialchars($row['name']) . '</h3>';
+                echo '<p>Цена: ' . htmlspecialchars($row['price']) . 'р</п>';
+                echo '<button onclick="deleteProduct(' . htmlspecialchars($row['id']) . '); event.stopPropagation();">Удалить</button>';
+                echo '</div>';
+            }
+        }
+    }
+    ?>
+</div>
+
+
+
+        <h2>Ваша корзина</h2>
+        <div id="cartItems">
+            
+            <!-- Товары из корзины будут загружены через JavaScript -->
+        </div>
+    </main>
+    <footer>
+        <p>&copy; 2024 Minis Store</p>
+    </footer>
+
+   
+
+    <script>
+//-------------------------------
+function deleteProduct(productId) {
+    if (confirm('Вы уверены, что хотите удалить этот товар?')) {
+        fetch('delete_product.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ id: productId })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Удалить элемент товара из DOM
+                document.getElementById('product-' + productId).remove();
+                alert('Товар успешно удален.');
+            } else {
+                alert('Ошибка удаления товара: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            alert('Ошибка удаления товара.');
+        });
+    }
+}
+
+
+
+//--------------------------------
+        document.addEventListener('DOMContentLoaded', function() {
+            const addProductButton = document.getElementById('addProductButton');
+            const logoutButton = document.getElementById('logoutButton');
+
+            if (logoutButton) {
+                logoutButton.addEventListener('click', function() {
+                    fetch('logout.php').then(() => {
+                        window.location.href = 'index.php';
+                    });
+                });
+            }
+
+            if (addProductButton) {
+                addProductButton.addEventListener('click', function() {
+                    document.getElementById('addProductModal').style.display = 'block';
+                });
+            }
+
+            // Обработчик для закрытия модального окна добавления товара
+            function closeAddProductModal() {
+                document.getElementById('addProductModal').style.display = 'none';
+            }
+
+            // Обработчик для закрытия модального окна просмотра товара
+            function closeProductModal() {
+                document.getElementById('productModal').style.display = 'none';
+            }
+
+            // Функция отображения всплывающего окна с подробностями о товаре
+            function showProductDetails(image, name, description, price) {
+                const modalProductImage = document.getElementById('modalProductImage');
+                const modalProductName = document.getElementById('modalProductName');
+                const modalProductDescription = document.getElementById('modalProductDescription');
+                const modalProductPrice = document.getElementById('modalProductPrice');
+
+                if (modalProductImage && modalProductName && modalProductDescription && modalProductPrice) {
+                    modalProductImage.src = image;
+                    modalProductName.textContent = name;
+                    modalProductDescription.textContent = description;
+                    modalProductPrice.textContent = `Цена: ${price}р`;
+                    document.getElementById('productModal').style.display = 'block';
+                }
+            }
+            // Загрузка товаров из корзины
+            function loadCart() {
+                fetch('get_cart.php')
+                .then(response => response.json())
+                .then(data => {
+                    const cartItemsContainer = document.getElementById('cartItems');
+                    cartItemsContainer.innerHTML = '';
+
+                    if (data.length === 0) {
+                        cartItemsContainer.innerHTML = '<p>Ваша корзина пуста.</p>';
+                    } else {
+                        data.forEach((item, index) => {
+                            const cartItem = document.createElement('div');
+                            cartItem.classList.add('cart-item');
+                            cartItem.innerHTML = `
+                                <p>${item.product_name} - ${item.product_price}р</p>
+                                <button onclick="removeFromCart(${item.id})">Удалить</button>
+                            `;
+                            cartItemsContainer.appendChild(cartItem);
+                        });
+                        
+                    }
+                });
+            }
+
+            function removeFromCart(productId) {
+                fetch('remove_from_cart.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ id: productId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        loadCart();
+                    } else {
+                        alert('Ошибка при удалении товара из корзины.');
+                    }
+                });
+            }
+
+            // Загрузка корзины при загрузке страницы
+            loadCart();
+        });
+    </script>
+</body>
+</html>
