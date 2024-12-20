@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Магазин мини-фигурок</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="images/Minis_Store_logo.png" alt="My Logo">
+            
+        </div>
+        <div class="sidebar">
+            <section id="auth-buttons" class="auth-buttons">
+                <?php if (isset($_SESSION['user_id'])): ?>
+                    <button id="profileButton" class="profile-button">Личный кабинет</button>
+                    <button id="logoutButton" class="button">Выход</button>
+                <?php else: ?>
+                    <button id="loginButton" class="auth-button">Войти</button>
+                    <button id="registerButton" class="auth-button">Зарегистрироваться</button>
+                <?php endif; ?>
+            </section>
+            <button id="cartButton" class="cart-button">🛒</button>
+        </div>
+    </header>
+
+    <main>
+    <section class="products">
+    <h2>Недавно добавленные</h2>
+    <div class="product-grid" id="productGrid">
+        <?php
+        $conn = pg_connect("host=127.0.0.1 port=5432 dbname=Web user=postgres password=1234");
+
+        if (!$conn) {
+            die("Connection failed: " . pg_last_error());
+        }
+
+        $result = pg_query($conn, 'SELECT * FROM products ORDER BY id DESC LIMIT 10');
+        if ($result) {
+            while ($row = pg_fetch_assoc($result)) {
+                echo '<div class="product" onclick="showProductDetails(\'' . htmlspecialchars($row['image']) . '\', \'' . htmlspecialchars($row['name']) . '\', \'' . htmlspecialchars($row['description']) . '\', \'' . htmlspecialchars($row['price']) . '\', ' . htmlspecialchars($row['id']) . ')">';
+                echo '<img src="' . htmlspecialchars($row['image']) . '" alt="' . htmlspecialchars($row['name']) . '">';
+                echo '<h3>' . htmlspecialchars($row['name']) . '</h3>';
+                echo '<p>Цена: ' . htmlspecialchars($row['price']) . 'р</п>';
+                echo '</div>';
+            }
+        } else {
+            echo "Error: " . pg_last_error($conn);
+        }
+
+        pg_close($conn);
+        ?>
+    </div>
+</section>
+
+    </main>
+
+    <div id="cartSidebar" class="cart-sidebar">
+        <h2>Корзина</h2>
+        <div id="cartItems"></div>
+        <button id="closeCartButton">Закрыть</button>
+    </div>
+
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeProductModal()">&times;</span>
+            <div class="modal-body">
+                <img id="modalProductImage" src="" alt="Product Image">
+                <div class="modal-details">
+                    <h3 id="modalProductName"></h3>
+                    <p id="modalProductDescription"></p>
+                    <p id="modalProductPrice" class="red-price"></p>
+                    <button id="addToCartButton" onclick="addToCart()">Добавить в корзину</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    </main>
+    <footer>
+    <p>&copy; 2024 Minis Store</p>
+    <p>Контактная информация:</p>
+    <p>Телефон: +375 (29) 123-45-67</p>
+    <p>Email: info@minisstore.com</p>
+    <p>Адрес: г. Гродно, ул. Ленина, д. 25</p>
+    <button class="contact-button" onclick="window.location.href='contacts.html'">Контакты</button>
+</footer>
+
+<style>
+    .contact-button {
+        background: none;
+        border: none;
+        color: #555; /* Темно-серый цвет текста */
+        font-size: 16px;
+        cursor: pointer;
+        text-decoration: underline;
+    }
+    .contact-button:hover {
+        color: #333; /* Более темный цвет текста при наведении */
+    }
+</style>
+
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const profileButton = document.getElementById('profileButton');
+            const logoutButton = document.getElementById('logoutButton');
+            const loginButton = document.getElementById('loginButton');
+            const registerButton = document.getElementById('registerButton');
+            const cartButton = document.getElementById('cartButton');
+            const closeCartButton = document.getElementById('closeCartButton');
+
+            if (profileButton) {
+                profileButton.addEventListener('click', function() {
+                    window.location.href = 'profile.php';
+                });
+            }
+
+            if (logoutButton) {
+                logoutButton.addEventListener('click', function() {
+                    fetch('logout.php').then(() => {
+                        window.location.href = 'index.php';
+                    });
+                });
+            }
+
+            if (loginButton) {
+                loginButton.addEventListener('click', function() {
+                    window.location.href = 'login.php';
+                });
+            }
+
+            if (registerButton) {
+                registerButton.addEventListener('click', function() {
+                    window.location.href = 'register.php';
+                });
+            }
+
+            if (cartButton) {
+                cartButton.addEventListener('click', function() {
+                    document.getElementById('cartSidebar').classList.add('open');
+                    loadCart();
+                });
+            }
+
+            if (closeCartButton) {
+                closeCartButton.addEventListener('click', function() {
+                    document.getElementById('cartSidebar').classList.remove('open');
+                });
+            }
+        });
+
+        function showProductDetails(image, name, description, price, productId) {
+            const modalProductImage = document.getElementById('modalProductImage');
+            const modalProductName = document.getElementById('modalProductName');
+            const modalProductDescription = document.getElementById('modalProductDescription');
+            const modalProductPrice = document.getElementById('modalProductPrice');
+            const addToCartButton = document.getElementById('addToCartButton');
+            
+            if (modalProductImage && modalProductName && modalProductDescription && modalProductPrice && addToCartButton) {
+                modalProductImage.src = image;
+                modalProductName.textContent = name;
+                modalProductDescription.textContent = description;
+                modalProductPrice.textContent = `Цена: ${price}р`;
+                addToCartButton.dataset.productId = productId;
+                document.getElementById('productModal').style.display = 'block';
+            }
+        }
+
+        function closeProductModal() {
+            document.getElementById('productModal').style.display = 'none';
+        }
+
+        function addToCart() {
+            const name = document.getElementById('modalProductName').textContent;
+            const price = document.getElementById('modalProductPrice').textContent.split(' ')[1].replace('р', '');
+            const productId = document.getElementById('addToCartButton').dataset.productId;
+
+            fetch('add_to_cart.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, price, product_id: productId })
+            })
+            .then(response => response.text())
+            .then(text => {
+                console.log('Server response:', text);
+                return JSON.parse(text);
+            })
+            .then(data => {
+                if (data.success) {
+                    alert('Товар добавлен в корзину!');
+                    closeProductModal();
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function loadCart() {
+            fetch('get_cart.php')
+            .then(response => response.json())
+            .then(data => {
+                const cartItemsContainer = document.getElementById('cartItems');
+                cartItemsContainer.innerHTML = '';
+
+                if (data.length === 0) {
+                    cartItemsContainer.innerHTML = '<p>Ваша корзина пуста.</p>';
+                } else {
+                    data.forEach((item, index) => {
+                        const cartItem = document.createElement('div');
+                        cartItem.classList.add('cart-item');
+                        cartItem.innerHTML = `
+                            <p>${item.product_name} - ${item.product_price}р</p>
+                            <button onclick="removeFromCart(${item.id})">Удалить</button>
+                        `;
+                        cartItemsContainer.appendChild(cartItem);
+                    });
+                }
+            });
+        }
+
+        function removeFromCart(productId) {
+            fetch('remove_from_cart.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id: productId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadCart();
+                } else {
+                    alert('Ошибка при удалении товара из корзины.');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+
+
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.9);
+        }
+
+        .modal-content {
+            background-color: #333;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            color: white;
+        }
+
+        .modal-body {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .modal-content img {
+            width: 50%; /* Размер изображения в два раза меньше */
+            height: auto;
+            margin-right: 20px;
+        }
+
+        .modal-details p {
+            margin: 0;
+        }
+
+        .red-price {
+            color: red;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .cart-item button {
+            margin-left: 20px;
+        }
+    </style>
+</body>
+</html>
